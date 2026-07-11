@@ -4,3 +4,4 @@ python-dateutil>=2.8
 django-cors-headers>=4.0
 djangorestframework-simplejwt>=2.8
 pytest-django>=4.5
+gunicorn>=21.0
