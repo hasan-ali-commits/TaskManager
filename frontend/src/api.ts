@@ -201,7 +201,7 @@ export async function getNoteItems(start: string, end: string, today: string) {
   return resp.json()
 }
 
-export async function createNoteItem(payload: { date: string; text: string; kind: 'TODO' | 'SIDE_QUEST' }) {
+export async function createNoteItem(payload: { date: string; text: string }) {
   const csrfToken = await ensureCsrfToken()
   const resp = await fetch(`${API_BASE}/api/core/notes/`, {
     method: 'POST',

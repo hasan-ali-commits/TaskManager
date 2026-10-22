@@ -1,13 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { getNoteItems, createNoteItem, updateNoteItem, deleteNoteItem } from '../api'
 
-type Kind = 'TODO' | 'SIDE_QUEST'
-type NoteItem = { id: string; date: string; original_date: string; text: string; kind: Kind; done: boolean }
-
-const SECTIONS: { kind: Kind; label: string; empty: string }[] = [
-  { kind: 'TODO', label: '✅ To-do', empty: 'Nothing to do yet.' },
-  { kind: 'SIDE_QUEST', label: '⚔️ Side quests', empty: 'No side quests yet.' },
-]
+type NoteItem = { id: string; date: string; original_date: string; text: string; done: boolean }
 
 function toYMD(d: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -29,7 +23,6 @@ export default function DailyNote({ date, onClose, onChanged }: { date: string; 
   const [items, setItems] = useState<NoteItem[]>([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
-  const [kind, setKind] = useState<Kind>('TODO')
   const inputRef = useRef<HTMLInputElement>(null)
 
   async function load() {
@@ -61,7 +54,7 @@ export default function DailyNote({ date, onClose, onChanged }: { date: string; 
     const value = text.trim()
     if (!value) return
     try {
-      const created = await createNoteItem({ date, text: value, kind })
+      const created = await createNoteItem({ date, text: value })
       setItems(prev => [...prev, created])
       setText('')
       onChanged && onChanged()
@@ -98,50 +91,38 @@ export default function DailyNote({ date, onClose, onChanged }: { date: string; 
   return (
     <div className="note-overlay" onClick={onClose}>
       <div className="note-card" role="dialog" aria-modal="true" aria-label={`Daily note for ${title}`} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <div>
-            <h3 style={{ margin: 0 }}>📝 Daily note</h3>
+            <h3 style={{ margin: 0, fontSize: 17 }}>⚔️ Side quests</h3>
             <div className="small">{title}{items.length > 0 && ` · ${doneCount}/${items.length} done`}</div>
           </div>
-          <button className="btn" type="button" onClick={onClose} aria-label="Close">✕</button>
+          <button className="btn" type="button" onClick={onClose} aria-label="Close" style={{ padding: '4px 10px' }}>✕</button>
         </div>
 
-        {loading ? (
-          <div className="small">Loading…</div>
-        ) : (
-          SECTIONS.map(section => {
-            const sectionItems = items.filter(i => i.kind === section.kind)
-            return (
-              <div key={section.kind} style={{ marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{section.label}</div>
-                {sectionItems.length === 0 ? (
-                  <div className="small">{section.empty}</div>
-                ) : (
-                  sectionItems.map(item => (
-                    <label key={item.id} className="note-item">
-                      <input type="checkbox" checked={item.done} onChange={() => toggle(item)} />
-                      <span style={{ flex: 1, textDecoration: item.done ? 'line-through' : 'none', opacity: item.done ? 0.6 : 1 }}>{item.text}</span>
-                      {item.original_date !== item.date && (
-                        <span className="note-carried" title="Not ticked on its day, so it moved forward">↪ from {shortDate(item.original_date)}</span>
-                      )}
-                      <button className="note-delete" type="button" aria-label={`Delete ${item.text}`} onClick={e => { e.preventDefault(); remove(item) }}>✕</button>
-                    </label>
-                  ))
+        <div style={{ marginBottom: 10 }}>
+          {loading ? (
+            <div className="small">Loading…</div>
+          ) : items.length === 0 ? (
+            <div className="small">Nothing here yet.</div>
+          ) : (
+            items.map(item => (
+              <label key={item.id} className="note-item">
+                <input type="checkbox" checked={item.done} onChange={() => toggle(item)} />
+                <span style={{ flex: 1, textDecoration: item.done ? 'line-through' : 'none', opacity: item.done ? 0.6 : 1 }}>{item.text}</span>
+                {item.original_date !== item.date && (
+                  <span className="note-carried" title="Not ticked on its day, so it moved forward">↪ from {shortDate(item.original_date)}</span>
                 )}
-              </div>
-            )
-          })
-        )}
+                <button className="note-delete" type="button" aria-label={`Delete ${item.text}`} onClick={e => { e.preventDefault(); remove(item) }}>✕</button>
+              </label>
+            ))
+          )}
+        </div>
 
-        <form onSubmit={addItem} style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-          <select className="priority-select" style={{ minWidth: 0 }} value={kind} onChange={e => setKind(e.target.value as Kind)} aria-label="Item type">
-            <option value="TODO">To-do</option>
-            <option value="SIDE_QUEST">Side quest</option>
-          </select>
+        <form onSubmit={addItem} style={{ display: 'flex', gap: 8 }}>
           <input ref={inputRef} className="login-input" style={{ flex: 1, margin: 0 }} placeholder="Add something quick…" value={text} onChange={e => setText(e.target.value)} />
           <button className="btn primary" type="submit">Add</button>
         </form>
-        <div className="small" style={{ marginTop: 10 }}>Anything not ticked moves on to the next day automatically.</div>
+        <div className="small" style={{ marginTop: 8, fontSize: 12 }}>Anything not ticked moves on to the next day automatically.</div>
       </div>
     </div>
   )

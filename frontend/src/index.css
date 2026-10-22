@@ -88,8 +88,8 @@ select, .login-input, .templates-select { background-clip: padding-box }
 
 /* Daily note pop-up (to-dos / side quests) */
 .note-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,6,23,0.6); z-index:1100; padding:16px }
-.note-card { width:440px; max-width:100%; max-height:85vh; overflow-y:auto; background:#071027; padding:18px; border-radius:12px; border:1px solid rgba(124,58,237,0.15); box-shadow: 0 10px 30px rgba(124,58,237,0.12), 0 6px 18px rgba(2,6,23,0.7) }
-.note-item { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,0.02); margin-bottom:4px; cursor:pointer }
+.note-card { width:390px; max-width:100%; max-height:85vh; overflow-y:auto; background:#071027; padding:15px; font-size:14px; border-radius:12px; border:1px solid rgba(124,58,237,0.15); box-shadow: 0 10px 30px rgba(124,58,237,0.12), 0 6px 18px rgba(2,6,23,0.7) }
+.note-item { display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:8px; background:rgba(255,255,255,0.02); margin-bottom:4px; cursor:pointer }
 .note-carried { font-size:11px; color:#fbbf24; white-space:nowrap }
 .note-delete { background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 4px; font-size:12px; opacity:0.5 }
 .note-item:hover .note-delete { opacity:1 }
