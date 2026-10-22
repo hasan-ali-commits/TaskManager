@@ -1,4 +1,5 @@
 import React from 'react'
+import { NoteButton } from './DailyNote'
 
 type Occurrence = { task_id: string; title: string; date: string; priority: string; status?: string; is_recurring?: boolean }
 
@@ -31,7 +32,7 @@ function formatTime(iso: string) {
   }
 }
 
-export default function WeekView({ occurrences, weekDate, onSlotClick, onOccurrenceClick, onToggleStatus }: any) {
+export default function WeekView({ occurrences, weekDate, onSlotClick, onOccurrenceClick, onToggleStatus, noteCounts, onNoteClick }: any) {
   const start = getWeekStart(weekDate ? new Date(weekDate) : new Date())
   const days = Array.from({ length: 7 }).map((_, index) => {
     const d = new Date(start)
@@ -55,7 +56,10 @@ export default function WeekView({ occurrences, weekDate, onSlotClick, onOccurre
           const dayItems = (byDate[key] || []).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
           return (
             <div key={key} style={{ borderRadius: 14, padding: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ marginBottom: 10, fontWeight: 700 }}>{formatDayLabel(day)}</div>
+              <div style={{ marginBottom: 10, fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
+                <span>{formatDayLabel(day)}</span>
+                <NoteButton date={key} counts={noteCounts} onOpen={onNoteClick} />
+              </div>
               {dayItems.length === 0 ? (
                 <div className="small" style={{ marginBottom: 8 }}>No tasks</div>
               ) : (

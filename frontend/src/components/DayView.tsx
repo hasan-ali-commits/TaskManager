@@ -1,4 +1,5 @@
 import React from 'react'
+import { NoteButton } from './DailyNote'
 
 const PRIORITIES = [
   { key: 'CRITICAL', label: 'Critical' },
@@ -34,7 +35,7 @@ function parseYMD(s?: string) {
   return new Date(y, m - 1, d)
 }
 
-export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenceClick, onToggleStatus }: any) {
+export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenceClick, onToggleStatus, noteCounts, onNoteClick }: any) {
   const date = dayDate ? parseYMD(dayDate) : new Date()
   const key = toYMD(date)
   const defaultDate = buildDefaultDate(key)
@@ -54,9 +55,12 @@ export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenc
           <h3 style={{ margin: 0 }}>Day view</h3>
           <div className="small">{date.toDateString()}</div>
         </div>
-        <button className="btn primary" type="button" onClick={() => onSlotClick && onSlotClick(defaultDate)}>
-          Add task for today
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <NoteButton date={key} counts={noteCounts} onOpen={onNoteClick} label="Daily note" />
+          <button className="btn primary" type="button" onClick={() => onSlotClick && onSlotClick(defaultDate)}>
+            Add task for today
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>

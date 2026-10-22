@@ -192,3 +192,46 @@ export async function quickAdd(text: string) {
   }
   return resp.json()
 }
+
+// Daily note items (to-dos / side quests). Dates are local YYYY-MM-DD strings.
+export async function getNoteItems(start: string, end: string, today: string) {
+  const url = `${API_BASE}/api/core/notes/?start=${start}&end=${end}&today=${today}`
+  const resp = await fetch(url, { credentials: 'include' })
+  if (!resp.ok) throw new Error('Fetching notes failed')
+  return resp.json()
+}
+
+export async function createNoteItem(payload: { date: string; text: string; kind: 'TODO' | 'SIDE_QUEST' }) {
+  const csrfToken = await ensureCsrfToken()
+  const resp = await fetch(`${API_BASE}/api/core/notes/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+    body: JSON.stringify(payload),
+    credentials: 'include'
+  })
+  if (!resp.ok) throw new Error('Adding note item failed')
+  return resp.json()
+}
+
+export async function updateNoteItem(id: string, payload: { done?: boolean; text?: string }) {
+  const csrfToken = await ensureCsrfToken()
+  const resp = await fetch(`${API_BASE}/api/core/notes/${id}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+    body: JSON.stringify(payload),
+    credentials: 'include'
+  })
+  if (!resp.ok) throw new Error('Updating note item failed')
+  return resp.json()
+}
+
+export async function deleteNoteItem(id: string) {
+  const csrfToken = await ensureCsrfToken()
+  const resp = await fetch(`${API_BASE}/api/core/notes/${id}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': csrfToken },
+    credentials: 'include'
+  })
+  if (!resp.ok) throw new Error('Deleting note item failed')
+  return resp
+}

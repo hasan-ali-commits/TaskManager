@@ -1,9 +1,9 @@
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.utils.dateparse import parse_datetime
-from .models import Task, Tag, RecurrenceException
-from .serializers import TaskSerializer, TagSerializer
+from django.utils.dateparse import parse_datetime, parse_date
+from .models import Task, Tag, RecurrenceException, DailyNoteItem
+from .serializers import TaskSerializer, TagSerializer, DailyNoteItemSerializer
 from .utils import expand_recurring_tasks
 from rest_framework.views import APIView
 from rest_framework import status
@@ -204,6 +204,37 @@ class TagViewSet(viewsets.ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+
+class DailyNoteItemViewSet(viewsets.ModelViewSet):
+    """Checklist items for the per-day pop-up note.
+
+    List query params: start=YYYY-MM-DD, end=YYYY-MM-DD (inclusive), and
+    optional today=YYYY-MM-DD (the user's local date; defaults to the server's).
+    Unchecked items from before today are moved onto today before listing.
+    """
+    serializer_class = DailyNoteItemSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return DailyNoteItem.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        start = parse_date(request.query_params.get('start') or '')
+        end = parse_date(request.query_params.get('end') or '')
+        if start is None or end is None:
+            return Response({'detail': 'start and end query params required (YYYY-MM-DD)'}, status=400)
+        today_param = request.query_params.get('today')
+        today = parse_date(today_param) if today_param else timezone.localdate()
+        if today is None:
+            return Response({'detail': 'invalid today; use YYYY-MM-DD'}, status=400)
+
+        DailyNoteItem.roll_over_unfinished(request.user, today)
+        items = self.get_queryset().filter(date__gte=start, date__lte=end)
+        return Response(self.get_serializer(items, many=True).data)
 
 
 class AnalyticsView(APIView):

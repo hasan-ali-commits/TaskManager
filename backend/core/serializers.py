@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Task, Tag, RecurrenceException
+from .models import Task, Tag, RecurrenceException, DailyNoteItem
 from django.contrib.auth import get_user_model
 from datetime import timedelta
 
@@ -82,6 +82,23 @@ class RecurrenceExceptionSerializer(serializers.ModelSerializer):
             if value.get('status') == 'DONE':
                 value['status'] = 'COMPLETED'
         return value
+
+
+class DailyNoteItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DailyNoteItem
+        fields = ('id', 'date', 'original_date', 'text', 'kind', 'done', 'created_at')
+        read_only_fields = ('original_date', 'created_at')
+
+    def validate_text(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Text cannot be empty')
+        return value
+
+    def create(self, validated_data):
+        validated_data['original_date'] = validated_data['date']
+        return super().create(validated_data)
 
 
 class UserSerializer(serializers.ModelSerializer):

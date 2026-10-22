@@ -85,3 +85,14 @@ select, .login-input, .templates-select { background-clip: padding-box }
 .logout-btn:hover { background: linear-gradient(90deg,#ef4444,#dc2626); color:white; border-color: rgba(255,80,80,0.2) }
 .logout-btn.loggingOut { background: linear-gradient(90deg,#ef4444,#dc2626); color:white }
 .logout-btn:active { transform: translateY(0) }
+
+/* Daily note pop-up (to-dos / side quests) */
+.note-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,6,23,0.6); z-index:1100; padding:16px }
+.note-card { width:440px; max-width:100%; max-height:85vh; overflow-y:auto; background:#071027; padding:18px; border-radius:12px; border:1px solid rgba(124,58,237,0.15); box-shadow: 0 10px 30px rgba(124,58,237,0.12), 0 6px 18px rgba(2,6,23,0.7) }
+.note-item { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,0.02); margin-bottom:4px; cursor:pointer }
+.note-carried { font-size:11px; color:#fbbf24; white-space:nowrap }
+.note-delete { background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 4px; font-size:12px; opacity:0.5 }
+.note-item:hover .note-delete { opacity:1 }
+.note-btn { background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.2); color:#fde68a; border-radius:6px; padding:1px 6px; font-size:11px; cursor:pointer; line-height:1.6; white-space:nowrap; flex-shrink:0 }
+.note-btn:hover { background:rgba(251,191,36,0.18) }
+.note-btn.has-open { background:rgba(251,191,36,0.2); border-color:rgba(251,191,36,0.45) }

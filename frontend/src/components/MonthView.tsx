@@ -1,4 +1,5 @@
 import React from 'react'
+import { NoteButton, NoteCounts } from './DailyNote'
 
 type Occurrence = {
   task_id: string
@@ -33,7 +34,7 @@ function toYMD(d: Date) {
   }
 }
 
-export default function MonthView({ occurrences, monthDate, onDayClick, onOccurrenceClick, onToggleStatus }: { occurrences: Occurrence[] | any; monthDate?: Date; onDayClick?: (isoDate:string)=>void; onOccurrenceClick?: (taskId:string, iso:string)=>void; onToggleStatus?: (taskId:string, iso:string, isRecurring:boolean, done:boolean)=>void }) {
+export default function MonthView({ occurrences, monthDate, onDayClick, onOccurrenceClick, onToggleStatus, noteCounts, onNoteClick }: { occurrences: Occurrence[] | any; monthDate?: Date; onDayClick?: (isoDate:string)=>void; onOccurrenceClick?: (taskId:string, iso:string)=>void; onToggleStatus?: (taskId:string, iso:string, isRecurring:boolean, done:boolean)=>void; noteCounts?: NoteCounts; onNoteClick?: (ymd:string)=>void }) {
   const base = monthDate || new Date()
   const start = startOfMonth(base)
   // compute start weekday with Monday as 0 (so Monday..Sunday => 0..6)
@@ -75,6 +76,7 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
             <div key={key} className={classes.join(' ')} onClick={() => { if (typeof onDayClick === 'function') onDayClick(key) }} style={{cursor: typeof onDayClick === 'function'? 'pointer':'default'}}>
               <div className="day-number" style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                 <span>{day.getDate()}</span>
+                <NoteButton date={key} counts={noteCounts} onOpen={onNoteClick} />
               </div>
               <div style={{marginTop:8}}>
                 {items.slice(0,3).map(it => (

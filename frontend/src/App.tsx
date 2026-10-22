@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { getOccurrences, login, getTask, register, getMe, logout, updateTask, updateTaskInstance, createTask, quickAdd } from './api'
+import { getOccurrences, login, getTask, register, getMe, logout, updateTask, updateTaskInstance, createTask, quickAdd, getNoteItems } from './api'
 import ErrorBoundary from './components/ErrorBoundary'
 import { logClientError } from './components/clientLogging'
 import MonthView from './components/MonthView'
@@ -9,6 +9,7 @@ import TaskModal from './components/TaskModal'
 import Analytics from './components/Analytics'
 import FocusTimer from './components/FocusTimer'
 import TemplatesSelect from './components/TemplatesSelect'
+import DailyNote, { NoteCounts } from './components/DailyNote'
 
 function monthStartISO(d: Date) {
   const s = new Date(d.getFullYear(), d.getMonth(), 1)
@@ -68,10 +69,47 @@ export default function App() {
   const [editingTask, setEditingTask] = useState<any | null>(null)
   const [modalInitialDuration, setModalInitialDuration] = useState<number | null>(null)
   const [selectionRange, setSelectionRange] = useState<{start:string,end:string}|null>(null)
+  const [noteDate, setNoteDate] = useState<string | null>(null)
+  const [noteCounts, setNoteCounts] = useState<NoteCounts>({})
   const monthDate = viewDate
   function toYMDLocal(d: Date) {
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  }
+
+  // count open/total daily-note items for every day visible in the current view
+  async function loadNoteCounts(date: Date, viewMode: 'month'|'week'|'day') {
+    let start: Date
+    let end: Date
+    if (viewMode === 'week') {
+      start = new Date(weekStartISO(date))
+      end = new Date(weekEndISO(date))
+    } else if (viewMode === 'day') {
+      start = end = date
+    } else {
+      // month grid starts on the Monday before the 1st and shows 42 days
+      const first = new Date(date.getFullYear(), date.getMonth(), 1)
+      start = new Date(first)
+      start.setDate(first.getDate() - (first.getDay() + 6) % 7)
+      end = new Date(start)
+      end.setDate(start.getDate() + 41)
+    }
+    try {
+      const items = await getNoteItems(toYMDLocal(start), toYMDLocal(end), toYMDLocal(new Date()))
+      const counts: NoteCounts = {}
+      items.forEach((it: any) => {
+        const c = counts[it.date] || (counts[it.date] = { open: 0, total: 0 })
+        c.total += 1
+        if (!it.done) c.open += 1
+      })
+      setNoteCounts(counts)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  function refreshNoteCounts() {
+    if (view !== 'analytics') loadNoteCounts(viewDate, view)
   }
 
   async function doLogin(e: React.FormEvent) {
@@ -111,6 +149,7 @@ export default function App() {
 
   useEffect(() => {
     if (user) loadOccurrences(viewDate, view)
+    if (user && view !== 'analytics') loadNoteCounts(viewDate, view)
   }, [user, viewDate, view])
 
   useEffect(() => {
@@ -346,6 +385,8 @@ export default function App() {
             onDayClick={openCreateFor}
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}
+            noteCounts={noteCounts}
+            onNoteClick={setNoteDate}
           />
         )}
         {view === 'week' && (
@@ -355,6 +396,8 @@ export default function App() {
             onSlotClick={openCreateFor}
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}
+            noteCounts={noteCounts}
+            onNoteClick={setNoteDate}
           />
         )}
         {view === 'day' && (
@@ -364,6 +407,8 @@ export default function App() {
             onSlotClick={openCreateFor}
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}
+            noteCounts={noteCounts}
+            onNoteClick={setNoteDate}
           />
         )}
         {view === 'analytics' && (
@@ -372,6 +417,7 @@ export default function App() {
 
         {!occ && <div className="card" style={{padding:18}}>Sign in and click Prev/Next to load occurrences for a month.</div>}
         {modalOpen && <TaskModal open={modalOpen} initialDate={modalDate} task={editingTask} occurrenceDate={modalOccurrenceDate ?? undefined} initialDurationMinutes={modalInitialDuration} onClose={handleCloseModal} onSaved={handleSaved} />}
+        {noteDate && <DailyNote date={noteDate} onClose={() => setNoteDate(null)} onChanged={refreshNoteCounts} />}
       </div>
       </>
       </ErrorBoundary>
