@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { createTask, updateTask, deleteTask, updateTaskInstance, deleteTaskOccurrence, getOccurrences } from '../api'
 import ConfirmationDialog from './ConfirmationDialog'
+import RepeatPicker, { DEFAULT_RULE } from './RepeatPicker'
 
 function isoToLocalInput(iso?: string | null) {
   if (!iso) return ''
@@ -45,7 +46,6 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
   const [priority, setPriority] = useState(task?.priority || 'ROUTINE')
   const [isRecurring, setIsRecurring] = useState(task?.is_recurring || false)
   const [recurrenceRule, setRecurrenceRule] = useState(task?.recurrence_rule || '')
-  const [tagNames, setTagNames] = useState((task && task.tags) ? task.tags.map((t: any)=>t.name).join(',') : '')
   const [durationMinutes, setDurationMinutes] = useState<number | null>(task?.duration_minutes ?? (initialDurationMinutes ?? null))
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -91,10 +91,9 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
       title,
       date: localYmdToIso(date),
       priority,
-      tag_names: tagNames ? tagNames.split(',').map((s:string)=>s.trim()) : []
     }
     if (durationMinutes) basePayload.duration_minutes = durationMinutes
-    if (isRecurring) { basePayload.is_recurring = true; basePayload.recurrence_rule = recurrenceRule }
+    if (isRecurring) { basePayload.is_recurring = true; basePayload.recurrence_rule = recurrenceRule || DEFAULT_RULE }
     try {
       let res
       if (task && task.id) {
@@ -128,10 +127,9 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
       title,
       date: localYmdToIso(date),
       priority,
-      tag_names: tagNames ? tagNames.split(',').map((s:string)=>s.trim()) : []
     }
     if (durationMinutes) payload.duration_minutes = durationMinutes
-    if (isRecurring) { payload.is_recurring = true; payload.recurrence_rule = recurrenceRule }
+    if (isRecurring) { payload.is_recurring = true; payload.recurrence_rule = recurrenceRule || DEFAULT_RULE }
     try {
       const res = await updateTask(task.id, payload)
       onSaved && onSaved(res)
@@ -251,17 +249,13 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
               <option value="IMPORTANT">IMPORTANT</option>
               <option value="ROUTINE">ROUTINE</option>
             </select>
-            <input className="login-input" placeholder="Tags (comma)" value={tagNames} onChange={e=>setTagNames(e.target.value)} />
             <input className="login-input" type="number" placeholder="Duration (min)" value={durationMinutes ?? ''} onChange={e=>setDurationMinutes(e.target.value ? parseInt(e.target.value) : null)} />
           </div>
           <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap'}}>
-            <label className="small"><input type="checkbox" checked={isRecurring} onChange={e=>setIsRecurring(e.target.checked)} /> Recurring</label>
+            <label className="small"><input type="checkbox" checked={isRecurring} onChange={e=>{ setIsRecurring(e.target.checked); if (e.target.checked && !recurrenceRule) setRecurrenceRule(DEFAULT_RULE) }} /> Recurring</label>
             {isRecurring && (
               <div style={{flex:'1 1 100%'}}>
-                <input className="login-input" placeholder="RRULE" value={recurrenceRule} onChange={e=>setRecurrenceRule(e.target.value)} />
-                <div className="small" style={{marginTop:4, opacity:0.7}}>
-                  Example: <code>FREQ=DAILY;COUNT=5</code> or <code>FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=12</code>
-                </div>
+                <RepeatPicker value={recurrenceRule} onChange={setRecurrenceRule} startDate={date} />
               </div>
             )}
           </div>

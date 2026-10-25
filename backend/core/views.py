@@ -2,9 +2,9 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils.dateparse import parse_datetime, parse_date
-from .models import Task, Tag, RecurrenceException, DailyNoteItem
-from .serializers import TaskSerializer, TagSerializer, DailyNoteItemSerializer
-from .utils import expand_recurring_tasks
+from .models import Task, RecurrenceException, DailyNoteItem
+from .serializers import TaskSerializer, DailyNoteItemSerializer
+from .utils import expand_recurring_tasks, get_zone
 from rest_framework.views import APIView
 from rest_framework import status
 from django.contrib.auth import authenticate, login, logout
@@ -119,7 +119,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     def occurrences(self, request):
         """Return expanded occurrences for the authenticated user's tasks within a date range.
 
-        Query params: start=ISO_DATE, end=ISO_DATE
+        Query params: start=ISO_DATE, end=ISO_DATE, optional tz=IANA zone (e.g. Asia/Kolkata)
         """
         start = request.query_params.get('start')
         end = request.query_params.get('end')
@@ -142,7 +142,8 @@ class TaskViewSet(viewsets.ModelViewSet):
         tasks = Task.objects.filter(user=request.user)
         exceptions = RecurrenceException.objects.filter(task__in=tasks)
 
-        occurrences = expand_recurring_tasks(tasks, exceptions, start_dt, end_dt)
+        tz = get_zone(request.query_params.get('tz'))
+        occurrences = expand_recurring_tasks(tasks, exceptions, start_dt, end_dt, tz=tz)
         return Response(occurrences)
 
     def update(self, request, *args, **kwargs):
@@ -198,12 +199,6 @@ class RecurrenceExceptionViewSet(viewsets.ModelViewSet):
         if task.user != self.request.user:
             raise permissions.PermissionDenied('Cannot create exception for tasks you do not own')
         serializer.save()
-
-
-class TagViewSet(viewsets.ModelViewSet):
-    queryset = Tag.objects.all()
-    serializer_class = TagSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
 
 class DailyNoteItemViewSet(viewsets.ModelViewSet):
@@ -262,7 +257,8 @@ class AnalyticsView(APIView):
 
         tasks = Task.objects.filter(user=request.user)
         exceptions = RecurrenceException.objects.filter(task__in=tasks)
-        occurrences = expand_recurring_tasks(tasks, exceptions, start_dt, end_dt)
+        tz = get_zone(request.query_params.get('tz'))
+        occurrences = expand_recurring_tasks(tasks, exceptions, start_dt, end_dt, tz=tz)
 
         total = len(occurrences)
         completed = sum(1 for o in occurrences if o.get('status') == 'COMPLETED')
@@ -272,12 +268,6 @@ class AnalyticsView(APIView):
         for o in occurrences:
             p = o.get('priority') or 'UNKNOWN'
             by_priority[p] = by_priority.get(p, 0) + 1
-
-        # tag counts (by tasks)
-        tag_counts = {}
-        for t in tasks:
-            for tag in t.tags.all():
-                tag_counts[tag.name] = tag_counts.get(tag.name, 0) + 1
 
         # compute current completion streak (consecutive days with at least one completed occurrence)
         completed_dates = set()
@@ -299,7 +289,6 @@ class AnalyticsView(APIView):
             'completed_occurrences': completed,
             'completion_rate_percent': completion_rate,
             'by_priority': by_priority,
-            'tag_counts': tag_counts,
             'current_streak_days': streak,
         })
 

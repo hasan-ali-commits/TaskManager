@@ -3,7 +3,18 @@ from dateutil.parser import parse as parse_dt
 from django.utils import timezone
 import datetime
 import logging
+from zoneinfo import ZoneInfo
 logger = logging.getLogger(__name__)
+
+
+def get_zone(name):
+    """Return a ZoneInfo for an IANA name like 'Asia/Kolkata', or None if invalid."""
+    if not name:
+        return None
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        return None
 
 def occurrence_to_dict(task, occ_dt, exception_override=None):
     d = {
@@ -26,11 +37,13 @@ def occurrence_to_dict(task, occ_dt, exception_override=None):
     return d
 
 
-def expand_recurring_tasks(tasks, exceptions_qs, range_start, range_end):
+def expand_recurring_tasks(tasks, exceptions_qs, range_start, range_end, tz=None):
     """Expand recurring tasks into occurrences between range_start and range_end.
 
     tasks: queryset or iterable of Task
     exceptions_qs: queryset of RecurrenceException
+    tz: ZoneInfo of the viewer; rules like BYDAY=MO are evaluated on that zone's
+        calendar days (falls back to each task's timezone field, then UTC)
     returns: list of dict occurrences
     """
     def _normalize(dt):
@@ -74,8 +87,9 @@ def expand_recurring_tasks(tasks, exceptions_qs, range_start, range_end):
             rs = _normalize(range_start)
             re = _normalize(range_end)
             logger.debug('expanding task %s dtstart %s rs %s re %s rule %s', task.id, dtstart, rs, re, task.recurrence_rule)
-            rule = rrulestr(task.recurrence_rule, dtstart=dtstart)
-            occs = rule.between(rs, re, inc=True)
+            zone = tz or get_zone(task.timezone) or datetime.timezone.utc
+            rule = rrulestr(task.recurrence_rule, dtstart=dtstart.astimezone(zone))
+            occs = rule.between(rs.astimezone(zone), re.astimezone(zone), inc=True)
             logger.debug('task %s generated occs: %s', task.id, [o.isoformat() for o in occs])
             for occ in occs:
                 occ_n = _normalize(occ)

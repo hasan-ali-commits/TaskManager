@@ -9,7 +9,7 @@ type Step = {
 
 const steps: Step[] = [
   { id: 1, title: 'Backend scaffold', status: 'done', description: 'Django + DRF setup and base project created.' },
-  { id: 2, title: 'Models & migrations', status: 'done', description: 'Task, Tag, RecurrenceException models and migrations created.' },
+  { id: 2, title: 'Models & migrations', status: 'done', description: 'Task, RecurrenceException models and migrations created.' },
   { id: 3, title: 'Auth API', status: 'done', description: 'Register, login, logout, and current user endpoints implemented.' },
   { id: 4, title: 'Recurrence engine', status: 'done', description: 'Recurring task expansion and exceptions are working on the backend.' },
   { id: 5, title: 'Tasks API', status: 'done', description: 'Task CRUD and instance exception handling implemented.' },

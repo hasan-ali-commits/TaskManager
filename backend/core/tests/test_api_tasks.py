@@ -14,19 +14,16 @@ class TaskAPITests(TestCase):
         self.client = APIClient()
         self.client.login(username='apiuser', password='pass')
 
-    def test_create_task_with_tags(self):
+    def test_create_task(self):
         url = reverse('task-list')
         payload = {
             'title': 'API Task',
             'date': timezone.now().isoformat(),
             'priority': 'IMPORTANT',
-            'tag_names': ['Study', 'Urgent']
         }
         resp = self.client.post(url, payload, format='json')
         self.assertEqual(resp.status_code, 201)
-        task_id = resp.data['id']
-        task = Task.objects.get(id=task_id)
-        self.assertEqual(task.tags.count(), 2)
+        self.assertTrue(Task.objects.filter(id=resp.data['id'], title='API Task').exists())
 
     def test_create_exception_via_api_and_occurrence_reflects(self):
         start = timezone.make_aware(datetime(2026, 6, 1))

@@ -55,7 +55,6 @@ payload = {
     'priority': 'IMPORTANT',
     'is_recurring': True,
     'recurrence_rule': 'FREQ=DAILY;COUNT=5',
-    'tag_names': ['E2E', 'Test']
 }
 code, text = do_request('POST', '/api/tasks/', data=payload, headers=headers)
 print('create task', code, text[:200])

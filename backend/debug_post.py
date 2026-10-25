@@ -16,7 +16,6 @@ payload = {
     'title': 'API Task',
     'date': timezone.now().isoformat(),
     'priority': 'IMPORTANT',
-    'tag_names': ['Study', 'Urgent']
 }
 resp = client.post('/api/tasks/', payload, format='json')
 print('status:', resp.status_code)

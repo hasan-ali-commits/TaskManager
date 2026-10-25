@@ -5,14 +5,6 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 
-class Tag(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=64, unique=True)
-
-    def __str__(self):
-        return self.name
-
-
 class Task(models.Model):
     PRIORITY_CHOICES = [
         ('CRITICAL', 'CRITICAL'),
@@ -36,7 +28,6 @@ class Task(models.Model):
     all_day = models.BooleanField(default=False)
     timezone = models.CharField(max_length=64, default='UTC')
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES)
-    tags = models.ManyToManyField(Tag, blank=True, related_name='tasks')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
     is_recurring = models.BooleanField(default=False)
     recurrence_rule = models.TextField(blank=True, null=True)
