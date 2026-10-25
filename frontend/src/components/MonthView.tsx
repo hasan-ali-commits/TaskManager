@@ -7,6 +7,7 @@ type Occurrence = {
   date: string
   status?: string
   is_recurring?: boolean
+  priority?: string
 }
 
 function startOfMonth(d: Date) {
@@ -34,7 +35,7 @@ function toYMD(d: Date) {
   }
 }
 
-export default function MonthView({ occurrences, monthDate, onDayClick, onOccurrenceClick, onToggleStatus, noteCounts, onNoteClick }: { occurrences: Occurrence[] | any; monthDate?: Date; onDayClick?: (isoDate:string)=>void; onOccurrenceClick?: (taskId:string, iso:string)=>void; onToggleStatus?: (taskId:string, iso:string, isRecurring:boolean, done:boolean)=>void; noteCounts?: NoteCounts; onNoteClick?: (ymd:string)=>void }) {
+export default function MonthView({ occurrences, monthDate, onDayClick, onOccurrenceClick, onToggleStatus, noteCounts, onNoteClick, onMoreClick }: { occurrences: Occurrence[] | any; monthDate?: Date; onDayClick?: (isoDate:string)=>void; onOccurrenceClick?: (taskId:string, iso:string)=>void; onToggleStatus?: (taskId:string, iso:string, isRecurring:boolean, done:boolean)=>void; noteCounts?: NoteCounts; onNoteClick?: (ymd:string)=>void; onMoreClick?: (ymd:string)=>void }) {
   const base = monthDate || new Date()
   const start = startOfMonth(base)
   // compute start weekday with Monday as 0 (so Monday..Sunday => 0..6)
@@ -80,7 +81,7 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
               </div>
               <div style={{marginTop:8}}>
                 {items.slice(0,3).map(it => (
-                  <div key={it.task_id + it.date} className="occ-item" style={{display:'flex', alignItems:'center', gap:8}}>
+                  <div key={it.task_id + it.date} className={`occ-item prio-item prio-${it.priority}`} title={`${it.title} (${it.priority})`} style={{display:'flex', alignItems:'center', gap:6}}>
                     <input
                       type="checkbox"
                       checked={it.status === 'COMPLETED'}
@@ -91,14 +92,24 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
                       }}
                     />
                     <div
-                      style={{flex:1, textDecoration: it.status === 'COMPLETED' ? 'line-through' : 'none', cursor:'pointer'}}
+                      className="occ-title clamp"
+                      style={{textDecoration: it.status === 'COMPLETED' ? 'line-through' : 'none', cursor:'pointer'}}
                       onClick={e => { e.stopPropagation(); if (typeof onOccurrenceClick === 'function') onOccurrenceClick(it.task_id, it.date) }}
                     >
                       {it.title}
                     </div>
                   </div>
                 ))}
-                {items.length > 3 && <div className="small">+{items.length - 3} more</div>}
+                {items.length > 3 && (
+                  <button
+                    type="button"
+                    className="more-link"
+                    title="Show all tasks for this day"
+                    onClick={e => { e.stopPropagation(); if (typeof onMoreClick === 'function') onMoreClick(key) }}
+                  >
+                    +{items.length - 3} more
+                  </button>
+                )}
               </div>
             </div>
           )

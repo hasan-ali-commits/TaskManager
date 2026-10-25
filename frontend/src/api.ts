@@ -219,7 +219,7 @@ export async function createNoteItem(payload: { date: string; text: string }) {
   return resp.json()
 }
 
-export async function updateNoteItem(id: string, payload: { done?: boolean; text?: string }) {
+export async function updateNoteItem(id: string, payload: { done?: boolean; text?: string; repeat_daily?: boolean }) {
   const csrfToken = await ensureCsrfToken()
   const resp = await fetch(`${API_BASE}/api/core/notes/${id}/`, {
     method: 'PATCH',

@@ -61,3 +61,46 @@ class DailyNoteAPITests(TestCase):
     def test_empty_text_rejected(self):
         resp = self.client.post(self.url, {'date': '2026-10-21', 'text': '   '}, format='json')
         self.assertEqual(resp.status_code, 400)
+
+    def test_daily_item_comes_back_every_day(self):
+        resp = self.client.post(self.url, {'date': '2026-10-20', 'text': 'Take medicine', 'repeat_daily': True}, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.client.patch(f"{self.url}{resp.data['id']}/", {'done': True}, format='json')
+
+        resp = self.list_notes('2026-10-20', '2026-10-22', '2026-10-22')
+        days = [(i['date'], i['done']) for i in resp.data]
+        # ticked on the 20th, then a fresh unticked copy for the 21st and 22nd
+        self.assertEqual(days, [('2026-10-20', True), ('2026-10-21', False), ('2026-10-22', False)])
+
+    def test_daily_item_is_not_duplicated_on_repeat_requests(self):
+        self.client.post(self.url, {'date': '2026-10-21', 'text': 'Take medicine', 'repeat_daily': True}, format='json')
+        self.list_notes('2026-10-21', '2026-10-22', '2026-10-22')
+        resp = self.list_notes('2026-10-21', '2026-10-22', '2026-10-22')
+        self.assertEqual(len(resp.data), 2)
+
+    def test_missed_daily_day_stays_unticked_and_is_not_moved(self):
+        self.client.post(self.url, {'date': '2026-10-21', 'text': 'Take medicine', 'repeat_daily': True}, format='json')
+        resp = self.list_notes('2026-10-21', '2026-10-22', '2026-10-22')
+        self.assertEqual([(i['date'], i['done']) for i in resp.data], [('2026-10-21', False), ('2026-10-22', False)])
+
+    def test_switching_daily_off_stops_new_copies(self):
+        resp = self.client.post(self.url, {'date': '2026-10-21', 'text': 'Take medicine', 'repeat_daily': True}, format='json')
+        self.list_notes('2026-10-21', '2026-10-22', '2026-10-22')
+        today_copy = DailyNoteItem.objects.get(date=date(2026, 10, 22))
+        self.client.patch(f'{self.url}{today_copy.id}/', {'repeat_daily': False, 'done': True}, format='json')
+        self.assertFalse(DailyNoteItem.objects.filter(repeat_daily=True).exists())
+
+        resp = self.list_notes('2026-10-21', '2026-10-24', '2026-10-24')
+        self.assertEqual([i['date'] for i in resp.data], ['2026-10-21', '2026-10-22'])
+
+    def test_deleting_daily_item_stops_it_repeating(self):
+        # ticked on the 20th, missed on the 21st, deleted on the 22nd
+        resp = self.client.post(self.url, {'date': '2026-10-20', 'text': 'Take medicine', 'repeat_daily': True}, format='json')
+        self.client.patch(f"{self.url}{resp.data['id']}/", {'done': True}, format='json')
+        self.list_notes('2026-10-20', '2026-10-22', '2026-10-22')
+        today_copy = DailyNoteItem.objects.get(date=date(2026, 10, 22))
+        self.client.delete(f'{self.url}{today_copy.id}/')
+
+        # only the ticked day is kept; nothing new appears later
+        resp = self.list_notes('2026-10-20', '2026-10-24', '2026-10-24')
+        self.assertEqual([(i['date'], i['done']) for i in resp.data], [('2026-10-20', True)])

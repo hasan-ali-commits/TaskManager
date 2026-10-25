@@ -65,7 +65,7 @@ export default function WeekView({ occurrences, weekDate, onSlotClick, onOccurre
               ) : (
                 dayItems.map((item: any) => (
                   <div key={item.task_id + item.date} style={{ marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor:'pointer', padding:'6px 8px', borderRadius:8, background: 'rgba(255,255,255,0.02)' }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date)}>
+                    <div className={`prio-item prio-${item.priority}`} title={item.priority} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor:'pointer', padding:'6px 8px', borderRadius:8 }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date)}>
                       <input
                         type="checkbox"
                         checked={item.status === 'COMPLETED'}
@@ -75,7 +75,7 @@ export default function WeekView({ occurrences, weekDate, onSlotClick, onOccurre
                           if (typeof onToggleStatus === 'function') onToggleStatus(item.task_id, item.date, Boolean(item.is_recurring), e.target.checked)
                         }}
                       />
-                      <div style={{ flex: 1, textDecoration: item.status === 'COMPLETED' ? 'line-through' : 'none' }}>
+                      <div className="occ-title" style={{ textDecoration: item.status === 'COMPLETED' ? 'line-through' : 'none' }}>
                         <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 2 }}>{formatTime(item.date)}</div>
                         <div>{item.title}</div>
                       </div>

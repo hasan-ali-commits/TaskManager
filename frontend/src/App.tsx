@@ -354,8 +354,8 @@ export default function App() {
       </div>
 
       <div style={{marginTop:18}}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
-          <div style={{display:'flex', gap:8}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:8}}>
+          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
                 <button className={`btn ${view==='month' ? 'active' : ''}`} onClick={()=>setView('month')}>Month</button>
                 <button className={`btn ${view==='week' ? 'active' : ''}`} onClick={()=>setView('week')}>Week</button>
                 <button className={`btn ${view==='day' ? 'active' : ''}`} onClick={()=>setView('day')}>Day</button>
@@ -363,8 +363,8 @@ export default function App() {
               <button className="btn" onClick={prevMonth}>Prev</button>
               <button className="btn" onClick={nextMonth}>Next</button>
             </div>
-              <div style={{display:'flex', alignItems:'center', gap:12}}>
-                <input className="login-input" placeholder="Quick Add (e.g. 'Meeting tomorrow at 9am')" value={quickText} onChange={e=>setQuickText(e.target.value)} style={{width:320}} />
+              <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
+                <input className="login-input" placeholder="Quick Add (e.g. 'Meeting tomorrow at 9am')" value={quickText} onChange={e=>setQuickText(e.target.value)} style={{width:320, maxWidth:'100%'}} />
                 <button className="btn" onClick={async ()=>{ if (!quickText) return alert('Enter text'); try { const res = await quickAdd(quickText); setQuickText(''); handleSaved(res); alert('Added'); } catch (err:any) { alert(err?.message || 'Quick add failed') } }}>Quick Add</button>
                 <TemplatesSelect onApply={async (payload:any) => { try { await createTask(payload); loadOccurrences(viewDate, view); alert('Template created') } catch (err) { console.error(err); alert('Template failed') } }} />
                 <button className="btn" onClick={()=>setShowTimer(s=>!s)}>{showTimer? 'Hide Timer':'Focus Timer'}</button>
@@ -375,6 +375,11 @@ export default function App() {
         {(view === 'month' || view === 'week' || view === 'day') && (
           <div className="top-left-header">
             <div className={`date-header ${headerAnimate ? 'animate' : ''}`} aria-live="polite" aria-atomic="true">{headerTitleForView(view, viewDate)}</div>
+            <div className="prio-legend" aria-label="Priority colours">
+              <span className="prio-CRITICAL"><span className="prio-dot" />Critical</span>
+              <span className="prio-IMPORTANT"><span className="prio-dot" />Important</span>
+              <span className="prio-ROUTINE"><span className="prio-dot" />Routine</span>
+            </div>
             <div className="occurrences-count">Occurrences ({occ?.length ?? 0})</div>
           </div>
         )}
@@ -387,6 +392,7 @@ export default function App() {
             onToggleStatus={toggleDone}
             noteCounts={noteCounts}
             onNoteClick={setNoteDate}
+            onMoreClick={(ymd: string) => { setViewDate(parseIsoOrYmd(ymd)); setView('day') }}
           />
         )}
         {view === 'week' && (

@@ -206,7 +206,8 @@ class DailyNoteItemViewSet(viewsets.ModelViewSet):
 
     List query params: start=YYYY-MM-DD, end=YYYY-MM-DD (inclusive), and
     optional today=YYYY-MM-DD (the user's local date; defaults to the server's).
-    Unchecked items from before today are moved onto today before listing.
+    Unchecked items from before today are moved onto today before listing, and
+    daily items (repeat_daily) get a fresh unticked copy for today.
     """
     serializer_class = DailyNoteItemSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -216,6 +217,21 @@ class DailyNoteItemViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    def perform_update(self, serializer):
+        item = serializer.save()
+        # switching "Daily" on or off applies to every day's copy of the item
+        if 'repeat_daily' in serializer.validated_data:
+            self.get_queryset().filter(series=item.series).update(repeat_daily=item.repeat_daily)
+
+    def perform_destroy(self, instance):
+        # deleting a daily item stops it repeating: its unticked days go too,
+        # ticked days stay as a record
+        if instance.repeat_daily:
+            series = self.get_queryset().filter(series=instance.series)
+            series.filter(done=False).delete()
+            series.update(repeat_daily=False)
+        instance.delete()
 
     def list(self, request, *args, **kwargs):
         start = parse_date(request.query_params.get('start') or '')

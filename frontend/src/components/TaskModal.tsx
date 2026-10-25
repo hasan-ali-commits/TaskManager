@@ -153,7 +153,7 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
             <input className="login-input" type="date" value={date} onChange={e=>setDate(e.target.value)} />
           </div>
           <div style={{display:'flex', gap:8, marginBottom:8}}>
-            <select className="priority-select" value={priority} onChange={e=>setPriority(e.target.value)}>
+            <select className={`priority-select prio-border prio-${priority}`} value={priority} onChange={e=>setPriority(e.target.value)}>
               <option value="CRITICAL">CRITICAL</option>
               <option value="IMPORTANT">IMPORTANT</option>
               <option value="ROUTINE">ROUTINE</option>

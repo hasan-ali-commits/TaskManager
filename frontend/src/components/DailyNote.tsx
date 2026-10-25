@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { getNoteItems, createNoteItem, updateNoteItem, deleteNoteItem } from '../api'
 
-type NoteItem = { id: string; date: string; original_date: string; text: string; done: boolean }
+type NoteItem = { id: string; date: string; original_date: string; text: string; done: boolean; repeat_daily: boolean }
 
 function toYMD(d: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -18,7 +18,8 @@ function shortDate(s: string) {
 }
 
 // Pop-up checklist for one day. Unticked items from earlier days show up on
-// today automatically (the backend moves them when the list is fetched).
+// today automatically, and "Daily" items come back every day (the backend
+// does both when the list is fetched).
 export default function DailyNote({ date, onClose, onChanged }: { date: string; onClose: () => void; onChanged?: () => void }) {
   const [items, setItems] = useState<NoteItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,6 +76,18 @@ export default function DailyNote({ date, onClose, onChanged }: { date: string; 
     }
   }
 
+  // Daily on = a fresh unticked copy comes back every day
+  async function toggleDaily(item: NoteItem) {
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, repeat_daily: !i.repeat_daily } : i))
+    try {
+      await updateNoteItem(item.id, { repeat_daily: !item.repeat_daily })
+      onChanged && onChanged()
+    } catch (err: any) {
+      setItems(prev => prev.map(i => i.id === item.id ? item : i))
+      alert(err?.message || 'Updating note item failed')
+    }
+  }
+
   async function remove(item: NoteItem) {
     try {
       await deleteNoteItem(item.id)
@@ -109,9 +122,18 @@ export default function DailyNote({ date, onClose, onChanged }: { date: string; 
               <label key={item.id} className="note-item">
                 <input type="checkbox" checked={item.done} onChange={() => toggle(item)} />
                 <span style={{ flex: 1, textDecoration: item.done ? 'line-through' : 'none', opacity: item.done ? 0.6 : 1 }}>{item.text}</span>
-                {item.original_date !== item.date && (
+                {!item.repeat_daily && item.original_date !== item.date && (
                   <span className="note-carried" title="Not ticked on its day, so it moved forward">↪ from {shortDate(item.original_date)}</span>
                 )}
+                <button
+                  type="button"
+                  className={`note-repeat ${item.repeat_daily ? 'on' : ''}`}
+                  aria-pressed={item.repeat_daily}
+                  title={item.repeat_daily ? 'Comes back every day (click to stop)' : 'Bring this back every day'}
+                  onClick={e => { e.preventDefault(); toggleDaily(item) }}
+                >
+                  🔁 Daily
+                </button>
                 <button className="note-delete" type="button" aria-label={`Delete ${item.text}`} onClick={e => { e.preventDefault(); remove(item) }}>✕</button>
               </label>
             ))
@@ -122,7 +144,7 @@ export default function DailyNote({ date, onClose, onChanged }: { date: string; 
           <input ref={inputRef} className="login-input" style={{ flex: 1, margin: 0 }} placeholder="Add something quick…" value={text} onChange={e => setText(e.target.value)} />
           <button className="btn primary" type="submit">Add</button>
         </form>
-        <div className="small" style={{ marginTop: 8, fontSize: 12 }}>Anything not ticked moves on to the next day automatically.</div>
+        <div className="small" style={{ marginTop: 8, fontSize: 12 }}>Unticked items move to tomorrow.</div>
       </div>
     </div>
   )

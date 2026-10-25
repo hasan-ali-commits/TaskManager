@@ -68,7 +68,7 @@ class RecurrenceExceptionSerializer(serializers.ModelSerializer):
 class DailyNoteItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = DailyNoteItem
-        fields = ('id', 'date', 'original_date', 'text', 'kind', 'done', 'created_at')
+        fields = ('id', 'date', 'original_date', 'text', 'kind', 'done', 'repeat_daily', 'created_at')
         read_only_fields = ('original_date', 'created_at')
 
     def validate_text(self, value):
