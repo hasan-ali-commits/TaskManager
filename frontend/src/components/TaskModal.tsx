@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { createTask, updateTask, deleteTask, updateTaskInstance, deleteTaskOccurrence, getOccurrences } from '../api'
+import { createTask, updateTask, deleteTask, updateTaskInstance, deleteTaskOccurrence } from '../api'
 import ConfirmationDialog from './ConfirmationDialog'
 import RepeatPicker, { DEFAULT_RULE } from './RepeatPicker'
 
@@ -18,26 +18,17 @@ function isoToLocalInput(iso?: string | null) {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
 }
 
-function isoToLocalString(iso?: string | null) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleString()
+function localYmdToIso(s?: string | null) {
+  if (!s) return null
+  const [y, m, d] = s.split('-').map((n:string)=>parseInt(n,10))
+  return new Date(y, m - 1, d).toISOString()
 }
 
-function relativeLabel(iso?: string | null) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const diff = Math.round((d.getTime() - Date.now()) / 1000)
-  const abs = Math.abs(diff)
-  if (abs < 60) return diff >= 0 ? 'in a few seconds' : 'a few seconds ago'
-  const mins = Math.round(abs / 60)
-  if (mins < 60) return diff >= 0 ? `in ${mins}m` : `${mins}m ago`
-  const hours = Math.round(mins / 60)
-  if (hours < 48) return diff >= 0 ? `in ${hours}h` : `${hours}h ago`
-  const days = Math.round(hours / 24)
-  if (days < 14) return diff >= 0 ? `in ${days}d` : `${days}d ago`
-  const weeks = Math.round(days / 7)
-  return diff >= 0 ? `in ${weeks}w` : `${weeks}w ago`
+// whole calendar days from one YYYY-MM-DD to another
+function daysBetween(fromYmd: string, toYmd: string) {
+  const [fy, fm, fd] = fromYmd.split('-').map(n => parseInt(n, 10))
+  const [ty, tm, td] = toYmd.split('-').map(n => parseInt(n, 10))
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000)
 }
 
 export default function TaskModal({ open, onClose, onSaved, initialDate, task, occurrenceDate, initialDurationMinutes }: any) {
@@ -49,12 +40,10 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
   const [durationMinutes, setDurationMinutes] = useState<number | null>(task?.duration_minutes ?? (initialDurationMinutes ?? null))
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [confirmType, setConfirmType] = useState<'delete'|'override'|'delete_task'|null>(null)
-  const [confirmOcc, setConfirmOcc] = useState<string | null>(null)
-  const [selectionOpen, setSelectionOpen] = useState(false)
-  const [selectionLoading, setSelectionLoading] = useState(false)
-  const [selectionOptions, setSelectionOptions] = useState<string[] | null>(null)
-  const [selectionMode, setSelectionMode] = useState<'delete'|'override'|null>(null)
+  const [confirmType, setConfirmType] = useState<'delete_day'|'delete_task'|null>(null)
+
+  // true when the user clicked one day of a repeating task on the calendar
+  const editingOneDay = Boolean(task?.id && task?.is_recurring && occurrenceDate)
 
   useEffect(() => {
     if (task) {
@@ -78,60 +67,22 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
 
   if (!open) return null
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    function localYmdToIso(s?: string | null) {
-      if (!s) return null
-      const [y, m, d] = s.split('-').map((n:string)=>parseInt(n,10))
-      return new Date(y, m - 1, d).toISOString()
-    }
-
-    const basePayload: any = {
-      title,
-      date: localYmdToIso(date),
-      priority,
-    }
-    if (durationMinutes) basePayload.duration_minutes = durationMinutes
-    if (isRecurring) { basePayload.is_recurring = true; basePayload.recurrence_rule = recurrenceRule || DEFAULT_RULE }
-    try {
-      let res
-      if (task && task.id) {
-        if (occurrenceDate) {
-          const payload = { override_data: basePayload }
-          res = await updateTaskInstance(task.id, occurrenceDate, payload)
-        } else {
-          res = await updateTask(task.id, basePayload)
-        }
-      } else {
-        res = await createTask(basePayload)
-      }
-      onSaved && onSaved(res)
-      onClose()
-    } catch (err) {
-      alert('Save failed')
-    } finally { setSaving(false) }
-  }
-
-  async function saveMaster(e: React.FormEvent) {
-    e.preventDefault()
-    if (!task || !task.id) return save(e)
-    setSaving(true)
-    function localYmdToIso(s?: string | null) {
-      if (!s) return null
-      const [y, m, d] = s.split('-').map((n:string)=>parseInt(n,10))
-      return new Date(y, m - 1, d).toISOString()
-    }
-
+  function taskPayload(startIso: string | null) {
     const payload: any = {
       title,
-      date: localYmdToIso(date),
+      date: startIso,
       priority,
+      is_recurring: isRecurring,
+      recurrence_rule: isRecurring ? (recurrenceRule || DEFAULT_RULE) : null,
     }
     if (durationMinutes) payload.duration_minutes = durationMinutes
-    if (isRecurring) { payload.is_recurring = true; payload.recurrence_rule = recurrenceRule || DEFAULT_RULE }
+    return payload
+  }
+
+  async function runSave(action: () => Promise<any>) {
+    setSaving(true)
     try {
-      const res = await updateTask(task.id, payload)
+      const res = await action()
       onSaved && onSaved(res)
       onClose()
     } catch (err) {
@@ -139,105 +90,63 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
     } finally { setSaving(false) }
   }
 
-  function openDeleteConfirm() {
-    if (!task || !task.id) return alert('Save task first to add exception')
-    if (!task.is_recurring) {
-      openTaskDeleteConfirm()
-      return
-    }
-    // If we have a specific occurrence in the modal, ask to delete that occurrence (confirmation)
-    if (occurrenceDate) {
-      setConfirmType('delete')
-      setConfirmOcc(occurrenceDate)
-      setConfirmOpen(true)
-      return
-    }
-    // open selection modal for user to pick an occurrence (or delete whole series)
-    setSelectionMode('delete')
-    fetchTaskOccurrencesForSelection()
+  // New task, or a task opened without a specific day: save the task itself
+  function save(e: React.FormEvent) {
+    e.preventDefault()
+    if (editingOneDay) return saveThisDay()
+    const payload = taskPayload(localYmdToIso(date))
+    return runSave(() => task && task.id ? updateTask(task.id, payload) : createTask(payload))
   }
 
-  function openOverrideConfirm() {
-    if (!task || !task.id) return alert('Save task first to add override')
-    if (occurrenceDate) {
-      setConfirmType('override')
-      setConfirmOcc(occurrenceDate)
-      setConfirmOpen(true)
-      return
-    }
-    setSelectionMode('override')
-    fetchTaskOccurrencesForSelection()
+  // Change only the clicked day (title, date, priority, duration); repeat settings are ignored
+  function saveThisDay() {
+    const override: any = { title, date: localYmdToIso(date), priority }
+    if (durationMinutes) override.duration_minutes = durationMinutes
+    return runSave(() => updateTaskInstance(task.id, occurrenceDate, { override_data: override }))
   }
 
-  function openTaskDeleteConfirm() {
-    if (!task || !task.id) return alert('Save task first to delete it')
-    setConfirmType('delete_task')
-    setConfirmOcc(null)
+  // Change the whole series. The date box shows the clicked day, so moving it by N days
+  // moves the series start by N days; leaving it alone keeps the original start date.
+  function saveAllDays() {
+    const start = new Date(task.date)
+    start.setDate(start.getDate() + daysBetween(isoToLocalInput(occurrenceDate), date))
+    return runSave(() => updateTask(task.id, taskPayload(start.toISOString())))
+  }
+
+  function askToDelete(type: 'delete_day'|'delete_task') {
+    setConfirmType(type)
     setConfirmOpen(true)
   }
 
-  async function fetchTaskOccurrencesForSelection() {
-    if (!task || !task.id) return
-    setSelectionLoading(true)
-    try {
-      // fetch a reasonable window of occurrences (past 30d to next 180d)
-      const now = new Date()
-      const start = new Date(now.getTime() - 30*24*60*60*1000).toISOString()
-      const end = new Date(now.getTime() + 180*24*60*60*1000).toISOString()
-      const occs = await getOccurrences(start, end)
-      // filter to this task's occurrences
-      const filtered = (occs || []).filter((o:any)=>o.task_id === String(task.id)).map((o:any)=>o.date)
-      if (filtered.length === 0) {
-        alert('No occurrences found in the next 180 days for this task')
-        return
-      }
-      setSelectionOptions(filtered)
-      setSelectionOpen(true)
-    } catch (err) {
-      console.error(err)
-      alert('Failed to load occurrences for selection')
-    } finally {
-      setSelectionLoading(false)
-    }
-  }
-
   async function runConfirmedAction() {
-    if (!task || !task.id || !confirmType || (confirmType === 'delete' && !confirmOcc)) { setConfirmOpen(false); return }
+    if (!task || !task.id || !confirmType) { setConfirmOpen(false); return }
     try {
-      if (confirmType === 'delete') {
-        await deleteTaskOccurrence(task.id, confirmOcc!)
-        alert('Occurrence deleted')
-      } else if (confirmType === 'delete_task') {
+      if (confirmType === 'delete_day') {
+        await deleteTaskOccurrence(task.id, occurrenceDate)
+      } else {
         await deleteTask(task.id)
-        alert('Task deleted')
-      } else if (confirmType === 'override') {
-        function localYmdToIso(s?: string | null) {
-          if (!s) return null
-          const [y, m, d] = s.split('-').map((n:string)=>parseInt(n,10))
-          return new Date(y, m - 1, d).toISOString()
-        }
-        const override: any = { title, date: localYmdToIso(date), priority }
-        if (durationMinutes) override.duration_minutes = durationMinutes
-        await updateTaskInstance(task.id, confirmOcc!, override)
-        alert('Occurrence override saved')
       }
       onSaved && onSaved(null)
       onClose()
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      alert(err?.message || 'Action failed')
+      alert(err?.message || 'Delete failed')
     } finally {
       setConfirmOpen(false)
       setConfirmType(null)
-      setConfirmOcc(null)
     }
   }
+
+  const dayLabel = editingOneDay
+    ? new Date(occurrenceDate).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })
+    : ''
+  const deleteAllLabel = task?.is_recurring ? 'Delete all days' : 'Delete task'
 
   return (
     <div style={{position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(2,6,23,0.6)'}}>
       <div style={{width:540, background:'#071027', padding:18, borderRadius:12}}>
-        <h3 style={{marginTop:0}}>{occurrenceDate ? 'Edit Occurrence' : (task ? 'Edit Task' : 'New Task')}</h3>
-        {occurrenceDate ? <div style={{background:'rgba(255,255,255,0.03)', padding:6, borderRadius:6, marginBottom:8}}>Editing occurrence: <span style={{fontFamily:'monospace'}}>{occurrenceDate}</span></div> : null}
+        <h3 style={{marginTop:0}}>{task ? 'Edit Task' : 'New Task'}</h3>
+        {editingOneDay ? <div style={{background:'rgba(255,255,255,0.03)', padding:6, borderRadius:6, marginBottom:8}}>📅 You opened <strong>{dayLabel}</strong> of a repeating task.</div> : null}
         <form onSubmit={save}>
           <div style={{display:'flex', gap:8, marginBottom:8}}>
             <input className="login-input" placeholder="Title" value={title} onChange={e=>setTitle(e.target.value)} />
@@ -256,58 +165,36 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
             {isRecurring && (
               <div style={{flex:'1 1 100%'}}>
                 <RepeatPicker value={recurrenceRule} onChange={setRecurrenceRule} startDate={date} />
+                {editingOneDay && (
+                  <div className="small" style={{marginTop:4, color:'#fbbf24'}}>Repeat changes only apply when you click “Save all days”.</div>
+                )}
               </div>
             )}
           </div>
           <div style={{display:'flex', gap:8, justifyContent:'flex-end', flexWrap:'wrap'}}>
             <button type="button" className="btn" onClick={onClose}>Cancel</button>
+            {editingOneDay && (
+              <button type="button" className="btn danger" onClick={() => askToDelete('delete_day')}>Delete this day</button>
+            )}
             {task && task.id ? (
-              <button type="button" className="btn danger" onClick={openTaskDeleteConfirm}>
-                Delete task
-              </button>
+              <button type="button" className="btn danger" onClick={() => askToDelete('delete_task')}>{deleteAllLabel}</button>
             ) : null}
-            {task && task.is_recurring ? (
+          </div>
+          <div style={{display:'flex', gap:8, justifyContent:'flex-end', flexWrap:'wrap', marginTop:8}}>
+            {editingOneDay ? (
               <>
-                {occurrenceDate ? (
-                  <button type="button" className="btn danger" onClick={() => { setConfirmType('delete'); setConfirmOcc(occurrenceDate); setConfirmOpen(true) }}>
-                    Delete occurrence
-                  </button>
-                ) : (
-                  <button type="button" className="btn danger" onClick={openDeleteConfirm}>
-                    <svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
-                    Add delete exception
-                  </button>
-                )}
-                <button type="button" className="btn danger" onClick={openTaskDeleteConfirm}>
-                  Delete series
+                <button type="button" className="btn primary" onClick={saveThisDay} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save this day only'}
                 </button>
-              </>
-            ) : null}
-            {occurrenceDate && task && task.id ? (
-              <>
-                <button type="button" className="btn warn" onClick={openOverrideConfirm}>
-                  <svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 0-3 6.71"></path><polyline points="21 12 21 6 15 6"></polyline></svg>
-                  Save as occurrence override
-                </button>
-                <button type="button" className="btn primary" onClick={(e:any)=>save(e)}>
-                  <svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                  {saving? 'Saving...':'Save occurrence'}
-                </button>
-                <button type="button" className="btn" onClick={saveMaster}>
-                  Save series
+                <button type="button" className="btn" onClick={saveAllDays} disabled={saving}>
+                  Save all days
                 </button>
               </>
             ) : (
-              <>
-                <button type="button" className="btn warn" onClick={openOverrideConfirm}>
-                  <svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 0-3 6.71"></path><polyline points="21 12 21 6 15 6"></polyline></svg>
-                  Save override for occurrence
-                </button>
-                <button className="btn primary" type="submit">
-                  <svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-                  {saving? 'Saving...':'Save'}
-                </button>
-              </>
+              <button className="btn primary" type="submit" disabled={saving}>
+                <svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                {saving? 'Saving...':'Save'}
+              </button>
             )}
           </div>
         </form>
@@ -315,40 +202,14 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
       {confirmOpen && (
         <ConfirmationDialog
           open={confirmOpen}
-          title={confirmType === 'delete' ? 'Delete occurrence' : (confirmType === 'delete_task' ? 'Delete task' : 'Save override')}
-          message={confirmType === 'delete' ? 'This will create an exception and remove this occurrence. Continue?' : (confirmType === 'delete_task' ? 'This will permanently delete the task. Continue?' : 'This will save the changes only for this occurrence. Continue?')}
+          title={confirmType === 'delete_day' ? 'Delete this day' : deleteAllLabel}
+          message={confirmType === 'delete_day'
+            ? `Only ${dayLabel} will be removed. The other days stay. Continue?`
+            : (task?.is_recurring ? 'This will permanently delete every day of this repeating task. Continue?' : 'This will permanently delete the task. Continue?')}
           onConfirm={runConfirmedAction}
           onCancel={() => setConfirmOpen(false)}
-          confirmLabel={confirmType === 'delete' ? 'Delete' : (confirmType === 'delete_task' ? 'Delete task' : 'Save override')}
+          confirmLabel={confirmType === 'delete_day' ? 'Delete this day' : deleteAllLabel}
         />
-      )}
-      {selectionOpen && (
-        <div style={{position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(2,6,23,0.6)'}}>
-          <div style={{width:520, background:'#071027', padding:18, borderRadius:12}}>
-            <h4 style={{marginTop:0}}>Select occurrence</h4>
-              <div style={{display:'flex', justifyContent:'flex-end', gap:8, marginBottom:8}}>
-                <button className="btn danger" onClick={() => { setConfirmType('delete_task'); setConfirmOcc(null); setConfirmOpen(true); setSelectionOpen(false); }}>Delete whole series</button>
-              </div>
-            {selectionLoading ? <div>Loading...</div> : (
-              <div style={{maxHeight:300, overflow:'auto'}}>
-                {selectionOptions && selectionOptions.map((d)=> (
-                  <div key={d} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:8, borderBottom:'1px solid rgba(255,255,255,0.03)'}}>
-                    <div>
-                      <div style={{fontFamily:'monospace'}}>{isoToLocalString(d)}</div>
-                      <div className="small" style={{opacity:0.8}}>{relativeLabel(d)}</div>
-                    </div>
-                    <div style={{display:'flex', gap:8}}>
-                      <button className="btn" onClick={()=>{ setConfirmType(selectionMode); setConfirmOcc(d); setConfirmOpen(true); setSelectionOpen(false); }}>{'Select'}</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{display:'flex', justifyContent:'flex-end', marginTop:12}}>
-              <button className="btn" onClick={()=>{ setSelectionOpen(false); setSelectionOptions(null); setSelectionMode(null); }}>Cancel</button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   )
