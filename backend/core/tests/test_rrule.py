@@ -64,3 +64,20 @@ class RecurrenceExpansionTests(TestCase):
         occurrences = expand_recurring_tasks([task], RecurrenceException.objects.none(), start, start + timedelta(days=14), tz=india)
         local_days = [datetime.fromisoformat(o['date']).astimezone(india).strftime('%a %d') for o in occurrences]
         self.assertEqual(local_days, ['Mon 26', 'Fri 30', 'Mon 02', 'Fri 06'])
+
+    def test_alternate_days_rule(self):
+        from zoneinfo import ZoneInfo
+        from ..utils import expand_recurring_tasks
+        india = ZoneInfo('Asia/Kolkata')
+        start = datetime(2026, 10, 26, tzinfo=india)
+        task = Task.objects.create(
+            user=self.user,
+            title='Run',
+            date=start,
+            priority='ROUTINE',
+            is_recurring=True,
+            recurrence_rule='FREQ=DAILY;INTERVAL=2;COUNT=4'
+        )
+        occurrences = expand_recurring_tasks([task], RecurrenceException.objects.none(), start, start + timedelta(days=14), tz=india)
+        local_days = [datetime.fromisoformat(o['date']).astimezone(india).strftime('%a %d') for o in occurrences]
+        self.assertEqual(local_days, ['Mon 26', 'Wed 28', 'Fri 30', 'Sun 01'])
